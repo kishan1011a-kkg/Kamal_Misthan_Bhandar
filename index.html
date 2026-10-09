@@ -282,6 +282,9 @@ button{font-family:inherit; cursor:pointer;}
 .thali-center{position:relative; z-index:1; width:80%; aspect-ratio:1; animation:spinSlow 22s linear infinite reverse;}
 .thali-center img{width:100%; height:100%; object-fit:cover; border-radius:50%;}
 
+/* ---------- Image fallback (logo) ---------- */
+.logo-fallback{display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; background:var(--gold); border:2px solid var(--gold); font-size:1.3rem; flex-shrink:0;}
+
 /* ---------- Dividers ---------- */
 .lotus-divider{color:var(--saffron); height:24px; margin:0 auto; max-width:1200px; padding:0 24px;}
 .lotus-divider svg{width:100%; height:100%;}
@@ -525,7 +528,7 @@ button{font-family:inherit; cursor:pointer;}
 <header class="navbar" id="navbar">
   <div class="nav-inner">
     <a href="#home" class="logo">
-      <img src="pic1.png" alt="Kamal Misthan Bhandar logo" class="logo-mark-img">
+      <img data-src="pic1.png" data-fallback="🪷" alt="Kamal Misthan Bhandar logo" class="logo-mark-img">
       <span class="logo-text">Kamal <em>Misthan Bhandar</em></span>
     </a>
 
@@ -583,7 +586,7 @@ button{font-family:inherit; cursor:pointer;}
     </div>
 
     <div class="hero-image">
-      <img src="hero_sweets.png" alt="Fresh sweets from Kamal Misthan Bhandar" onerror="this.style.display='none'">
+      <img data-src="hero-sweets.png" alt="Fresh sweets from Kamal Misthan Bhandar" id="heroImg" width="1600" height="1030" fetchpriority="high">
     </div>
 
   </div>
@@ -601,11 +604,11 @@ button{font-family:inherit; cursor:pointer;}
 
       <div class="counters" id="counters">
         <div class="counter-card">
-          <span class="counter-num" data-target="50">0</span><span class="counter-suffix">+</span>
+          <span class="counter-num" data-count="sweets" data-target="14">0</span><span class="counter-suffix"></span>
           <p>Sweet Varieties</p>
         </div>
         <div class="counter-card">
-          <span class="counter-num" data-target="30">0</span><span class="counter-suffix">+</span>
+          <span class="counter-num" data-count="snacks" data-target="6">0</span><span class="counter-suffix"></span>
           <p>Snack Varieties</p>
         </div>
         <div class="counter-card">
@@ -621,7 +624,7 @@ button{font-family:inherit; cursor:pointer;}
 
     <div class="about-visual">
       <div class="thali-ring">
-        <div class="thali-center"><img src="Malai_roll.jpg" alt="Kamal Misthan Bhandar"></div>
+        <div class="thali-center"><img data-src="Malai_roll.jpg" alt="Malai Roll from Kamal Misthan Bhandar"></div>
       </div>
     </div>
   </div>
@@ -725,7 +728,7 @@ button{font-family:inherit; cursor:pointer;}
 <footer class="footer">
   <div class="section-inner footer-grid">
     <div class="footer-brand">
-      <p class="logo-text"><img src="pic1.png" alt="Kamal Misthan Bhandar logo" class="logo-mark-img"> Kamal <em>Misthan Bhandar</em></p>
+      <p class="logo-text"><img data-src="pic1.png" data-fallback="🪷" alt="Kamal Misthan Bhandar logo" class="logo-mark-img"> Kamal <em>Misthan Bhandar</em></p>
       <p>Traditional sweets &amp; snacks, made fresh every day in Kudra, Kaimur.</p>
       <p class="made-with">Made with <span class="heart">&#10084;</span> in Bihar &middot; &copy; 2026 Kamal Misthan Bhandar</p>
     </div>
@@ -845,7 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
     {name:'Rakesh Kumar', role:'Kudra', quote:'Best sweets in Kudra! The Kaju Katli tastes just like home.', avatar:'R'},
     {name:'Sunita Devi', role:'Kaimur', quote:'Fresh and delicious every time — never once disappointed.', avatar:'S'},
     {name:'Manoj Singh', role:'Regular Customer', quote:'Highly recommended for festivals — order early during Diwali!', avatar:'M'},
-    {name:'Priya Sharma', role:'Kudra', quote:'The Litti Chokha and Jalebi combo is unbeatable on weekends.', avatar:'P'},
+    {name:'Priya Sharma', role:'Kudra', quote:'The Samosa and Chai combo is unbeatable on weekends.', avatar:'P'},
   ];
 
   /* Gallery photos: same folder as this HTML (or e.g. 'images/xyz.jpg').
@@ -862,9 +865,52 @@ document.addEventListener('DOMContentLoaded', () => {
     {img:'samosa.jpg', alt:'Samosa'},
     {img:'Milk_cake.jpg', alt:'Milk Cake'},
     {img:'motichur_laddu.jpg', alt:'Motichoor Laddu'},
-    {img:'kachori.jpg', alt:'Kachori'},
     {img:'Rabdi.jpg', alt:'Rabdi'},
   ];
+
+  /* ---------------- Smart image loader ----------------
+     GitHub Pages is case-sensitive, so 'Chai.jpg' will NOT load a file named 'chai.jpg'.
+     loadImage() tries the name you wrote first, then common variants
+     (lowercase, Capitalised, _ vs -, .jpg/.jpeg/.png/.webp) before giving up. */
+  function imageCandidates(src){
+    const m = src.match(/^(.*\/)?([^\/]+)\.([A-Za-z0-9]+)$/);
+    if (!m) return [src];
+    const dir = m[1] || '', base = m[2], ext = m[3].toLowerCase();
+    const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+    const bases = [];
+    [base, base.toLowerCase(), cap(base.toLowerCase())].forEach(b => {
+      [b, b.replace(/_/g,'-'), b.replace(/-/g,'_')].forEach(v => { if (!bases.includes(v)) bases.push(v); });
+    });
+    const exts = [ext, ...['jpg','jpeg','png','webp'].filter(e => e !== ext)];
+    const list = [];
+    exts.forEach(e => bases.forEach(b => list.push(dir + b + '.' + e)));
+    return list;
+  }
+  function loadImage(img, src, onFail){
+    const list = imageCandidates(src);
+    let i = 0;
+    const next = () => {
+      i++;
+      if (i < list.length) { img.src = list[i]; }
+      else { img.removeEventListener('error', next); if (onFail) onFail(); }
+    };
+    img.addEventListener('error', next);
+    img.src = list[0];
+  }
+
+  /* ---------------- Static images (logo, hero, about) ---------------- */
+  document.querySelectorAll('img[data-src]').forEach(img => {
+    loadImage(img, img.dataset.src, () => {
+      if (img.dataset.fallback) {
+        const span = document.createElement('span');
+        span.className = 'logo-fallback';
+        span.textContent = img.dataset.fallback;
+        img.replaceWith(span);
+      } else {
+        img.style.display = 'none';
+      }
+    });
+  });
 
   /* ---------------- Loader ---------------- */
   window.addEventListener('load', () => {
@@ -990,11 +1036,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (item.img) {
       const img = document.createElement('img');
-      img.src = item.img;
       img.alt = item.name;
       img.loading = 'lazy';
-      img.addEventListener('error', showEmoji);
+      img.decoding = 'async';
       thumb.appendChild(img);
+      loadImage(img, item.img, showEmoji);
     } else {
       showEmoji();
     }
@@ -1053,23 +1099,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const item = document.createElement('div');
     item.className = 'masonry-item';
     const img = document.createElement('img');
-    img.src = g.img;
     img.alt = g.alt;
     img.loading = 'lazy';
-    img.addEventListener('error', () => item.remove());
+    img.decoding = 'async';
     item.appendChild(img);
-    item.addEventListener('click', () => openLightbox(g));
+    item.addEventListener('click', () => openLightbox(img.currentSrc || img.src, g.alt));
     masonryGrid.appendChild(item);
+    loadImage(img, g.img, () => item.remove());
   });
 
   const lightbox = document.getElementById('lightbox');
   const lightboxInner = document.getElementById('lightboxInner');
   const lightboxClose = document.getElementById('lightboxClose');
-  function openLightbox(g){
+  function openLightbox(src, alt){
     lightboxInner.innerHTML = '';
     const big = document.createElement('img');
-    big.src = g.img;
-    big.alt = g.alt;
+    big.src = src;
+    big.alt = alt;
     lightboxInner.appendChild(big);
     lightbox.classList.add('open');
   }
@@ -1135,6 +1181,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ---------------- Animated counters ---------------- */
+  document.querySelector('[data-count="sweets"]').dataset.target = sweets.length;
+  document.querySelector('[data-count="snacks"]').dataset.target = snacks.length;
   const counterEls = document.querySelectorAll('.counter-num');
   const counterObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
